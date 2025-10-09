@@ -1,0 +1,4 @@
+1) Build in /circom with 
+circom sha256_preimage.circom --r1cs --wasm
+it generates .r1cs and the js folder
+
