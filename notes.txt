@@ -1,0 +1,96 @@
+ZKCP
+
+1. wrote the sha256_preimage.circom file and compiled it, saved into build
+
+2.setup "trusted" for groth16: "run in circom folder"
+https://docs.circom.io/getting-started/proving-circuits/
+
+
+snarkjs powersoftau new bn128 12 build/ptau12.ptau -v
+
+TO COLLECT INFO:
+snarkjs r1cs info build/sha256_preimage.r1cs
+
+[INFO]  snarkJS: Curve: bn-128
+[INFO]  snarkJS: # of Wires: 30985
+[INFO]  snarkJS: # of Constraints: 31264
+[INFO]  snarkJS: # of Private Inputs: 32
+[INFO]  snarkJS: # of Public Inputs: 0
+[INFO]  snarkJS: # of Labels: 204361
+[INFO]  snarkJS: # of Outputs: 32
+
+Since Constraints i have to choose PoT power of at least 15, Constraints < 2^15
+
+
+PHASE 1 : initiate new ceremony and contribute to it.
+said to be indipendent from circuit.
+
+
+snarkjs powersoftau new bn128 15 build/pot15_0000.ptau -v
+
+snarkjs powersoftau contribute build/pot15_0000.ptau build/pot15_0001.ptau -e="zkcp-ptau-1"
+
+snarkjs powersoftau prepare phase2 build/pot15_0001.ptau build/pot15_final.ptau
+snarkjs powersoftau verify build/pot15_final.ptau
+
+
+PHASE 2, circuit specific:
+
+bind pot to my circuit producing a preliminary key that still contains "toxic waste":
+
+snarkjs groth16 setup build/sha256_preimage.r1cs build/pot15_final.ptau build/sha256_preimage_0000.zkey
+
+remove toxic waste
+
+snarkjs zkey contribute build/sha256_preimage_0000.zkey build/sha256_preimage_final.zkey -e="zkcp-zkey-1"
+
+
+verify the zkey wrt to my circ
+snarkjs zkey verify build/sha256_preimage.r1cs build/pot15_final.ptau build/sha256_preimage_final.zkey
+
+the zkey is verified -> export it
+
+
+snarkjs zkey export verificationkey build/sha256_preimage_final.zkey build/verification_key.json
+
+
+
+Then I created an input json made of 256 random bytes and then proceeded to compute the witness:
+
+This is what the seller should expose on chain.
+
+K_RAW_HEX = f56c1a8ef50e1fc0feaa27c7d927f2bd03a9a4d040944e72e58b2aaeb20e896b    
+
+
+ node build/sha256_preimage_js/generate_witness.js \
+     build/sha256_preimage_js/sha256_preimage.wasm \
+     build/input.json \
+     build/witness.wtns
+
+after the witness is computed I generate the ZK PROOF:
+
+snarkjs groth16 prove \
+  build/sha256_preimage_final.zkey \
+  build/witness.wtns \
+  build/proof.json \
+  build/public.json
+
+
+To verify the proof:
+
+snarkjs groth16 verify \
+  build/verification_key.json \
+  build/public.json \
+  build/proof.json
+
+[INFO]  snarkJS: OK!
+
+Then the public.json converted to hexadecimal:
+
+H_HEX = a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe67902988642
+
+
+
+
+
+
