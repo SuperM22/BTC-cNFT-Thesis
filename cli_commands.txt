@@ -1,0 +1,8 @@
+bitcoin-cli -testnet4 listwallets
+
+Per accedere ai descriptors:
+bitcoin-cli -testnet4 -rpcwallet="seller_wallet" listdescriptors true
+
+
+TX in entrata x tutti gli address del wallet(unico modo trovato per vedere gli address di un wallet):
+bitcoin-cli -testnet4 -rpcwallet="seller_wallet" listreceivedbyaddress 1 true

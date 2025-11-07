@@ -89,8 +89,104 @@ Then the public.json converted to hexadecimal:
 
 H_HEX = a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe67902988642
 
+sha 256 on H 
+
+94C6C858E0CBE5C8BCE37A5565C10B727EE7C69017D6B4D3061513C0FB0BC92F
+
+
+
+---------ONCHAIN----------
+
+bitcoin-cli -testnet4 -rpcwallet="seller_wallet"
+
+Through the SegWit v0 script hash I'm basically producing the address which the buyer will fund that corresponds to the script.
+So the btc script must be :
+
+OP_SHA256 <H> OP_EQUALVERIFY <seller_pubkey> OP_CHECKSIG
+
+IN HEX:
+
+a82094C6C858E0CBE5C8BCE37A5565C10B727EE7C69017D6B4D3061513C0FB0BC92F882103594fb24289ab3851d8b05ef9b2b4e88837d9259e15b9c077b74f6f9de7aa10ddac
+
+
+
+So when the buyer will send amount x to that address it will be registered ad UTXO, and that can be redeemed by the seller 
+when he publishes the secret input.
+
+
+Now I create a new tx from scratch so that the seller can redeem:
+
+bitcoin-cli -testnet4 createrawtransaction \
+  '[{"txid":"6d455217e06ebb2908f0457e55f0c4afb952cdb7a7a4f1aefc914e524e5cdf98","vout":1}]' \
+  '{"'"$SELLER_ADDR"'":0.0009}'
+
+
+020000000198df5c4e524e91fcaef1a4a7b7cd52b9afc4f0557e45f00829bb6ee01752456d0100000000fdffffff01905f01000000000016001483a65a227ebc45bc75d61dc4a5407db296b5145200000000
+
+SIGNED_JSON=$(bitcoin-cli -testnet4 -rpcwallet="seller_wallet" signrawtransactionwithwallet \
+  "$RAWTX" \
+  '[{
+    "txid": "6d455217e06ebb2908f0457e55f0c4afb952cdb7a7a4f1aefc914e524e5cdf98",
+    "vout": 1,
+    "scriptPubKey": "00204c1d8fde53f69e573162d09c763a9aade2122c2c982331a7cd0271dced834613",
+    "amount": 0.00100000,
+    "witnessScript": "a82094c6c858e0cbe5c8bce37a5565c10b727ee7c69017d6b4d3061513c0fb0bc92f882103594fb24289ab3851d8b05ef9b2b4e88837d9259e15b9c077b74f6f9de7aa10ddac"
+  }]')
+echo "$SIGNED_JSON" | jq .
+
+020000000198df5c4e524e91fcaef1a4a7b7cd52b9afc4f0557e45f00829bb6ee01752456d0100000000fdffffff01905f01000000000016001483a65a227ebc45bc75d61dc4a5407db296b5145200000000
+
+
+
+Basically I could not finalise the redemption of the locked money through the usage of just bitcoin client:
+There is no way for btc core to prove complex scripts,
+I've tried to sign the transaction and then put in the secret after signing it but there is no way to do that too.
+To do that it is required the WIF, which i cannot access in a simple way.
+
+I'm going to rebuild a p2wsh from bitcoinlibjs so that i can easily build the redeeming transaction
+
+new script logs:
+
+H (sha256 of secret): a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe67902988642
+Seller WIF : cSGH1YrjG9azeY6HfYGMLhRJXgfhsYeZFTM4hvAzgnhyLixNmhfX
+Seller pubkey: 2,220,46,145,245,72,16,105,51,113,209,71,151,159,210,183,193,67,232,29,241,61,33,223,90,56,162,170,188,183,153,124,199
+witnessScript hex: 168,32,169,103,64,133,232,79,204,6,254,118,79,246,244,242,193,230,163,76,16,46,49,120,152,196,70,143,230,121,2,152,134,66,136,33,2,220,46,145,245,72,16,105,51,113,209,71,151,159,210,183,193,67,232,29,241,61,33,223,90,56,162,170,188,183,153,124,199,172
+P2WSH scriptPubKey hex: 0,32,191,123,153,165,117,66,218,83,155,111,43,114,7,11,72,118,226,25,125,120,53,43,145,91,128,247,118,248,146,83,50,138
+P2WSH address: tb1qhaaenft4gtd98xm09deqwz6gwm3pjltcx54ezkuq7am03yjnx29qgst8d5
+
+witness hex : a820a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe67902988642882102dc2e91f54810693371d147979fd2b7c143e81df13d21df5a38aaabcb7997cc7ac
+
+Founded the address from a faucet (idk why from bicoin-cli said wait some blocks)
+
+new testnet 3 address:
+mupY2N4f8geRNLgaH2maQFuy2s5uQUYzA9
+cNSNjWEehTTQH2QJfN8J5TVwdayTqZBycpxwFEdaTfRDktJsLm39
+
+
+Running the reedeeming script
+
+Error log run1:
+1.It's important to set the correct VOUT (which represents the index of the UTXO in the tx we want to access)
+2.Apparently the sats number has to be the same
+3.
+
+-------------------------------------------
+
+RUN 2
+
+H (sha256 of secret): a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe67902988642
+Seller WIF (KEEP SECRET): cTShDrKtShxhLiERY8kBD5cdFrLW3XmkysVPRH9QhkhkLFoehVTY
+Seller pubkey: 032fb23d2b944cc1986dda6047f092aac987d0b1d1f2bd9f7af1fc08d464539d14
+witnessScript hex: 168,32,169,103,64,133,232,79,204,6,254,118,79,246,244,242,193,230,163,76,16,46,49,120,152,196,70,143,230,121,2,152,134,66,136,33,3,47,178,61,43,148,76,193,152,109,218,96,71,240,146,170,201,135,208,177,209,242,189,159,122,241,252,8,212,100,83,157,20,172
+P2WSH scriptPubKey hex: 0,32,225,107,152,200,39,108,72,223,85,178,94,254,44,219,215,57,238,61,41,215,17,206,38,217,238,143,4,201,86,79,247,40
+P2WSH address: tb1qu94e3jp8d3yd74djtmlzek7h88hr62whz88zdk0w3uzvj4j07u5q7mtv3s
 
 
 
 
+Funding tx : 32cbe7241b2ac8830a22c672e2186ef19ef77e682aff58e70933afd7c8ea6a83
 
+Looks like everything worked fine.
+
+
+bitcoin-cli -testnet4  -rpcwallet="seller_wallet" listunspent "[\"tb1qu94e3jp8d3yd74djtmlzek7h88hr62whz88zdk0w3uzvj4j07u5q7mtv3s\"]"
