@@ -1,0 +1,6 @@
+Following:
+https://www.youtube.com/watch?v=_AHsyRkd2is
+
+Created new proj with
+
+nargo new noir

@@ -6,3 +6,199 @@ it generates .r1cs and the js folder
 
 moved to build folder
 
+
+k key
+s secret
+2) zk proof for the Maxwell setup.
+enc(k,s)->ct
+H(k) = h
+
+Build a zk proff of these computations so the buyer can verify.
+
+After the circuit is written run:
+
+circom maxwell.circom --r1cs --wasm --sym
+
+it generates the r1cs the sym and the js folder.
+
+template instances: 171
+non-linear constraints: 29228
+linear constraints: 2617
+public inputs: 0
+private inputs: 67
+public outputs: 0
+wires: 31598
+labels: 205199
+
+non linear constraints number ptau 15 should be enough
+
+Then again I'm repeating the steps I've already done for the other circuit
+
+1) START A NEW ceremony
+
+snarkjs powersoftau new bn128 15 build/pot15_0000.ptau -v
+[DEBUG] snarkJS: Calculating First Challenge Hash
+[DEBUG] snarkJS: Calculate Initial Hash: tauG1
+[DEBUG] snarkJS: Calculate Initial Hash: tauG2
+[DEBUG] snarkJS: Calculate Initial Hash: alphaTauG1
+[DEBUG] snarkJS: Calculate Initial Hash: betaTauG1
+[DEBUG] snarkJS: Blank Contribution Hash:
+                786a02f7 42015903 c6c6fd85 2552d272
+                912f4740 e1584761 8a86e217 f71f5419
+                d25e1031 afee5853 13896444 934eb04b
+                903a685b 1448b755 d56f701a fe9be2ce
+[INFO]  snarkJS: First Contribution Hash:
+                eca6f514 b89180fc fc6bf9f8 81a5670c
+                45419054 f1f6fec9 3628d6d1 bf995fbf
+                677d427c d40a7c05 ebb14fe5 ee96aff2
+                b4994dc0 e2904852 b408a9e7 fe36a02e
+
+2. Contribute and remove "toxic waste"
+
+snarkjs powersoftau contribute build/pot15_0000.ptau build/pot15_0001.ptau -e="zkcp-ptau-1"
+(this command takes some time to finish don't panic)
+
+
+[INFO]  snarkJS: Contribution Response Hash imported: 
+                0f556131 c5da1318 56f389eb 1520e29d
+                7cc810cc 0ce6f012 22a321f0 d8486476
+                80a61f78 cd150c15 f26fefec fd5ebfe0
+                c6e84f06 baf440d5 351e501a cef842c7
+[INFO]  snarkJS: Next Challenge Hash: 
+                5fc2580a d8bc4423 509fe1e7 f3a920d4
+                81ed5b03 72ff77c0 36cdf8a1 63cdf9ca
+                10535ea2 68eca28d 0ddbac43 afa1a0d2
+                c9afab23 8654cb0a 3642c3fb a204e4ad
+
+
+3. prepare phase 2 
+
+snarkjs powersoftau prepare phase2 build/pot15_0001.ptau build/pot15_final.ptau
+(this takes even longer no panic here too) and actually produces no output
+
+4. veify if the universal ptau file is valid
+
+snarkjs powersoftau verify build/pot15_final.ptau
+
+[INFO]  snarkJS: Powers Of tau file OK!
+[INFO]  snarkJS: Next challenge hash: 
+                5fc2580a d8bc4423 509fe1e7 f3a920d4
+                81ed5b03 72ff77c0 36cdf8a1 63cdf9ca
+                10535ea2 68eca28d 0ddbac43 afa1a0d2
+                c9afab23 8654cb0a 3642c3fb a204e4ad
+[INFO]  snarkJS: -----------------------------------------------------
+[INFO]  snarkJS: Contribution #1: 
+[INFO]  snarkJS: Next Challenge: 
+                5fc2580a d8bc4423 509fe1e7 f3a920d4
+                81ed5b03 72ff77c0 36cdf8a1 63cdf9ca
+                10535ea2 68eca28d 0ddbac43 afa1a0d2
+                c9afab23 8654cb0a 3642c3fb a204e4ad
+[INFO]  snarkJS: Response Hash:
+                0f556131 c5da1318 56f389eb 1520e29d
+                7cc810cc 0ce6f012 22a321f0 d8486476
+                80a61f78 cd150c15 f26fefec fd5ebfe0
+                c6e84f06 baf440d5 351e501a cef842c7
+[INFO]  snarkJS: Response Hash:
+                eca6f514 b89180fc fc6bf9f8 81a5670c
+                45419054 f1f6fec9 3628d6d1 bf995fbf
+                677d427c d40a7c05 ebb14fe5 ee96aff2
+                b4994dc0 e2904852 b408a9e7 fe36a02e
+[INFO]  snarkJS: -----------------------------------------------------
+[INFO]  snarkJS: Powers of Tau Ok!
+
+Then after building the ptau file (maybe I could have used the one from last time )
+I build the circuit specific setup.
+------------------- so called PHASE 2 _-----------------
+
+1. This generates the initial key 
+snarkjs groth16 setup maxwell.r1cs build/pot15_final.ptau build/maxwell_0000.zkey
+
+[INFO]  snarkJS: Reading r1cs
+[INFO]  snarkJS: Reading tauG1
+[INFO]  snarkJS: Reading tauG2
+[INFO]  snarkJS: Reading alphatauG1
+[INFO]  snarkJS: Reading betatauG1
+[INFO]  snarkJS: Circuit hash: 
+                6cb34346 1f96844e b24f4409 7a69982c
+                fbafbd26 cd340ad3 97fccbbb be83ec23
+                cbde64d1 719b295c 4cbcb65b ad5dcb33
+                7e330c09 72c8244e 262afd83 50b6e4cd
+
+2. This contributes and removes "toxic waste"
+
+snarkjs zkey contribute build/maxwell_0000.zkey build/maxwell_final.zkey -e="zkcp-zkey-1"
+
+[INFO]  snarkJS: Circuit Hash: 
+                6cb34346 1f96844e b24f4409 7a69982c
+                fbafbd26 cd340ad3 97fccbbb be83ec23
+                cbde64d1 719b295c 4cbcb65b ad5dcb33
+                7e330c09 72c8244e 262afd83 50b6e4cd
+[INFO]  snarkJS: Contribution Hash: 
+                10ce2937 3837eeb4 5188e456 cc52d3d0
+                6031fbba e3c687ac 2fd57cde de0360a9
+                11d83be7 bbc276fb 49f75b55 e6a41516
+                2f89ebca a81a024a 16efb15a 0211d701
+
+
+3. verify the circuit and the ptau
+
+snarkjs zkey verify maxwell.r1cs build/pot15_final.ptau build/maxwell_final.zkey
+
+
+[INFO]  snarkJS: Reading r1cs
+[INFO]  snarkJS: Reading tauG1
+[INFO]  snarkJS: Reading tauG2
+[INFO]  snarkJS: Reading alphatauG1
+[INFO]  snarkJS: Reading betatauG1
+[INFO]  snarkJS: Circuit hash: 
+                6cb34346 1f96844e b24f4409 7a69982c
+                fbafbd26 cd340ad3 97fccbbb be83ec23
+                cbde64d1 719b295c 4cbcb65b ad5dcb33
+                7e330c09 72c8244e 262afd83 50b6e4cd
+[INFO]  snarkJS: Circuit Hash: 
+                6cb34346 1f96844e b24f4409 7a69982c
+                fbafbd26 cd340ad3 97fccbbb be83ec23
+                cbde64d1 719b295c 4cbcb65b ad5dcb33
+                7e330c09 72c8244e 262afd83 50b6e4cd
+[INFO]  snarkJS: -------------------------
+[INFO]  snarkJS: contribution #1 :
+                10ce2937 3837eeb4 5188e456 cc52d3d0
+                6031fbba e3c687ac 2fd57cde de0360a9
+                11d83be7 bbc276fb 49f75b55 e6a41516
+                2f89ebca a81a024a 16efb15a 0211d701
+[INFO]  snarkJS: -------------------------
+[INFO]  snarkJS: ZKey Ok!
+
+AT THIS POINT I HAVE BUILD THE PTAU TO MY CIRCUIT AND VERIFIED IT. THE SO CALLED PHASE 2 IS OVER
+------------------------------------------------------------------
+NOW I EXPORT THE VERIFICATION KEY FOR THE BUYER:
+
+snarkjs zkey export verificationkey build/maxwell_final.zkey build/verification_key.json
+
+[INFO]  snarkJS: EXPORT VERIFICATION KEY STARTED
+[INFO]  snarkJS: > Detected protocol: groth16
+[INFO]  snarkJS: EXPORT VERIFICATION KEY FINISHED
+
+
+
+
+Then after everything is ready and setup , generate the witness and proof:
+
+node maxwell_js/generate_witness.js maxwell_js/maxwell.wasm input.json build/witness.wtns
+
+snarkjs groth16 prove build/maxwell_final.zkey build/witness.wtns build/proof.json build/public.json
+
+
+At this point the seller can send to the buyer the files:
+proof.json
+public.json
+verification_key.json
+
+The buyer can find ct and h in the public respectively ordered.
+He then can run 
+
+snarkjs groth16 verify verification_key.json public.json proof.json
+
+[INFO]  snarkJS: OK!
+
+To verify the correctness of the public outputs wrt k and s
