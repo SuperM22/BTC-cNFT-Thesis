@@ -1,0 +1,49 @@
+created new proj folder with.
+
+cargo risczero new sha-demo --guest-name sha_guest
+This creates a demo project from examples with already imported sha256 dependencies.
+
+To write the code go to methods/guest/src/main.rs
+
+This is known to be the guest code, the one that will be proven
+
+
+env::read() loads from the host
+The env::commit function commits public results to the journal
+
+To this scaffold project i modified the guest main.
+While in the host main i just gave an hex key input and added a few logs.
+
+Actually following :
+
+https://www.youtube.com/watch?v=Nmxe8cnuO-0
+
+To build:
+cargo build --release
+
+to then verify:
+
+cargo run -p host --release
+
+Built a better host file that works for both sides (seller and buyer) that actually proves and verifies the production and knowledge of a certain k and H(k).
+by running
+
+cargo run -p host --release -- seller "key"
+we hash the key and in an example output we obtain:
+
+[SELLER] Secret string: super secret key
+[SELLER] Computed hash H = 3fac1504251a027465981346fb5b0d57d398e4df4a03253a4c7d1926e40e9907
+[SELLER] Saved proof package to proof.bin
+[SELLER] Send H and proof.bin to the buyer.
+
+Then following the protocol we send proof.bin and the H(k),
+the buyer can run a verification on this, also directly using this script:
+
+cargo run -p host --release -- buyer "EXPECTED HASH"
+example out:
+[BUYER] Loaded proof package from proof.bin
+[BUYER] Expected H = 3fac1504251a027465981346fb5b0d57d398e4df4a03253a4c7d1926e40e9907
+[BUYER] Package claims H = 3fac1504251a027465981346fb5b0d57d398e4df4a03253a4c7d1926e40e9907
+[BUYER] Receipt verification OK.
+[BUYER] Journal hash = 3fac1504251a027465981346fb5b0d57d398e4df4a03253a4c7d1926e40e9907
+[BUYER] Proof is valid and matches expected hash.
