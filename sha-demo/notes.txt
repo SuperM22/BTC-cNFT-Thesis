@@ -47,3 +47,47 @@ example out:
 [BUYER] Receipt verification OK.
 [BUYER] Journal hash = 3fac1504251a027465981346fb5b0d57d398e4df4a03253a4c7d1926e40e9907
 [BUYER] Proof is valid and matches expected hash.
+
+
+Now other than hashing I'm also performing an ecryption step.
+
+to do that I'm using ChaCha20-Poly1305
+found online that it performs particularly good for big files to encrypt(images in this particulare case)
+
+First run info:
+
+K:  hJAanHxbKHtDVcAvU9eVsTUPLYnBLt0Q
+img path :  /Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/python_img/batman.png
+
+
+Proving actually takes more than 30 minutess...
+
+RISC0_DEV_MODE=1 before command to avoid proof generation
+
+RISC0_DEV_MODE=1 cargo run -p host --release -- seller "hJAanHxbKHtDVcAvU9eVsTUPLYnBLt0Q" "/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/python_img/batman.png"
+   Compiling methods v0.1.0 (/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/sha-demo/methods)
+sha_guest: Starting build for riscv32im-risc0-zkvm-elfods(build)                                                                                         
+sha_guest:     Finished `release` profile [optimized] target(s) in 0.14s
+   Compiling host v0.1.0 (/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/sha-demo/host)
+    Finished `release` profile [optimized + debuginfo] target(s) in 40.31s
+     Running `target/release/host seller hJAanHxbKHtDVcAvU9eVsTUPLYnBLt0Q /Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/python_img/batman.png`
+[SELLER] Secret key k (string form): hJAanHxbKHtDVcAvU9eVsTUPLYnBLt0Q
+[SELLER] Secret string: hJAanHxbKHtDVcAvU9eVsTUPLYnBLt0Q
+[SELLER] Reading image from: /Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/python_img/batman.png
+[SELLER] Image size: 25575 bytes
+[SELLER] Nonce (hex): 1e23f6dfb8df9cf2c620156a
+[SELLER] Starting proof generation...
+WARNING: proving in dev mode. This will not generate valid, secure proofs.
+[GUEST] Encrypting image
+[GUEST] Image encrypted, ciphertext size: 25591 bytes
+[GUEST] Committed public journal to host.
+WARNING: Proving in dev mode does not generate a valid receipt. Receipts generated from this process are invalid and should never be used in production.
+[SELLER] Proof generation completed.
+[SELLER] Verifying receipt...
+[SELLER] Guest ciphertext length: 25591 bytes
+[SELLER] Saved proof package to proof.bin
+[SELLER] Send H, nonce, ciphertext (inside proof.bin) to the buyer.
+
+
+Everything apparently works fine, should maybe ask to change the protocol and just encrypt the hash of the image.
+This would probably result in less proof building time 

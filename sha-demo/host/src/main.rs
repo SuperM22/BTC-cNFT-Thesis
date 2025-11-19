@@ -1,76 +1,123 @@
 use methods::{SHA_GUEST_ELF, SHA_GUEST_ID};
+use rand::RngCore;
 use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-/// File where we store the proof package (seller -----> buyer).
 const PROOF_FILE: &str = "proof.bin";
 
-/// What gets sent from seller to buyer.
+/// Public outputs from the guest (must match guest's PublicJournal)
+#[derive(Serialize, Deserialize, Debug)]
+struct PublicJournal {
+    hash_hex: String,
+    nonce: [u8; 12],
+    ciphertext: Vec<u8>,
+}
+
+/// What the seller sends to the buyer
 #[derive(Serialize, Deserialize, Debug)]
 struct ProofPackage {
-    /// H = SHA256(secret), hex-encoded
-    hash_hex: String,
-    /// zk proof (Risc0 receipt)
+    journal: PublicJournal,
     receipt: Receipt,
 }
 
-/// Seller: prove “I know secret s.t. SHA256(secret) = hash_hex”
-fn seller_prove(secret: &str) -> ProofPackage {
-    println!("[SELLER] Secret string: {secret}");
+/// Seller: prove “I know k and an image such that:
+///   hash_hex = SHA256(k)
+///   ciphertext = Enc_k(image, nonce)”
+fn seller_prove(secret: &str, image_path: &str) -> ProofPackage {
+    println!("[SELLER] Secret key k (string form): {secret}");
 
-    // Build environment and send secret to guest
+    let k_bytes = secret.as_bytes().to_vec();
+    if k_bytes.len() != 32 {
+        eprintln!("WARNING: ChaCha20Poly1305 requires k to be exactly 32 bytes.");
+    }
+
+    println!("[SELLER] Secret string: {secret}");
+    println!("[SELLER] Reading image from: {image_path}");
+
+    // Read image bytes
+    let image = fs::read(image_path).expect("Failed to read image file");
+
+    println!("[SELLER] Image size: {} bytes", image.len());
+
+    // Generate a random 12-byte nonce
+    let mut nonce = [0u8; 12];
+    rand::thread_rng().fill_bytes(&mut nonce);
+    println!("[SELLER] Nonce (hex): {}", hex::encode(nonce));
+
+    // Convert secret k into raw bytes
+    let k_bytes = secret.as_bytes().to_vec();
+
+    // Build executor environment and send inputs to the guest
     let env = ExecutorEnv::builder()
-        .write(&secret.to_string())
+        .write(&k_bytes) // k
+        .unwrap()
+        .write(&image) // image bytes
+        .unwrap()
+        .write(&nonce) // nonce
         .unwrap()
         .build()
         .unwrap();
 
+    println!("[SELLER] Starting proof generation...");
+    // Run the prover
     let prover = default_prover();
     let receipt = prover
         .prove(env, SHA_GUEST_ELF)
         .expect("Proving failed")
         .receipt;
+    println!("[SELLER] Proof generation completed.");
 
-    // Read hash from journal (this is H = SHA256(secret))
-    let hash_hex: String = receipt
+    println!("[SELLER] Verifying receipt...");
+    // Decode journal from the receipt
+    let journal: PublicJournal = receipt
         .journal
         .decode()
-        .expect("Failed to decode journal as String");
+        .expect("Failed to decode journal as PublicJournal");
 
-    println!("[SELLER] Computed hash H = {hash_hex}");
+    //println!("[SELLER] Guest reported hash H = {}", journal.hash_hex);
+    println!(
+        "[SELLER] Guest ciphertext length: {} bytes",
+        journal.ciphertext.len()
+    );
 
-    ProofPackage { hash_hex, receipt }
+    ProofPackage { journal, receipt }
 }
 
-/// Buyer: verify that the proof is valid and the hash matches the expected value.
+/// Buyer: verify proof and check the hash matches expected H
 fn buyer_verify(expected_hash: &str, pkg: &ProofPackage) -> bool {
-    println!("[BUYER] Expected H = {expected_hash}");
-    println!("[BUYER] Package claims H = {}", pkg.hash_hex);
+    println!("[BUYER] Expected H = {}", expected_hash);
+    println!("[BUYER] Package hash H = {}", pkg.journal.hash_hex);
+    println!("[BUYER] Package nonce (hex) = {}", hex::encode(pkg.journal.nonce));
+    println!(
+        "[BUYER] Ciphertext length in package: {} bytes",
+        pkg.journal.ciphertext.len()
+    );
 
-    // 1) Verify zk-proof against the guest program image ID
+    // Verify zk-proof against the guest image
     if let Err(e) = pkg.receipt.verify(SHA_GUEST_ID) {
         eprintln!("[BUYER] Receipt verification FAILED: {e}");
         return false;
     }
     println!("[BUYER] Receipt verification OK.");
 
-    // Ensure the journal's hash equals the hash inside the package
-    let journal_hash: String = pkg
+    // Ensure journal hash equals package hash and expected hash
+    let journal_from_receipt: PublicJournal = pkg
         .receipt
         .journal
         .decode()
-        .expect("Failed to decode journal as String");
+        .expect("Failed to decode journal from receipt");
 
-    println!("[BUYER] Journal hash = {journal_hash}");
+    let ok = journal_from_receipt.hash_hex == pkg.journal.hash_hex
+        && journal_from_receipt.hash_hex == expected_hash;
 
-    let ok = journal_hash == pkg.hash_hex && journal_hash == expected_hash;
     if ok {
-        println!("[BUYER] Proof is valid and matches expected hash.");
+        println!("[BUYER] Proof is valid and H matches expected value.");
     } else {
-        eprintln!("[BUYER] Hash mismatch.");
+        eprintln!("[BUYER] Hash mismatch between receipt/package/expected.");
     }
+
     ok
 }
 
@@ -80,8 +127,9 @@ fn main() {
     if args.is_empty() {
         eprintln!(
             "Usage:
-  seller <secret_string>        # generate proof and write {PROOF_FILE}
-  buyer  <expected_hash_hex>    # read {PROOF_FILE} and verify"
+  seller <secret_string> <image_path>     # generate proof, encrypt image, write {file}
+  buyer  <expected_hash_hex>             # read {file} and verify",
+            file = PROOF_FILE
         );
         std::process::exit(1);
     }
@@ -90,17 +138,15 @@ fn main() {
 
     match role.as_str() {
         "seller" => {
-            // seller <secret_string>
-            if args.is_empty() {
-                eprintln!("Usage: seller <secret_string>");
+            if args.len() < 2 {
+                eprintln!("Usage: seller <secret_string> <image_path>");
                 std::process::exit(1);
             }
             let secret = &args[0];
+            let image_path = &args[1];
 
-            // Run prover
-            let pkg = seller_prove(secret);
+            let pkg = seller_prove(secret, image_path);
 
-            // Serialize to file
             let bytes = bincode::serialize(&pkg).expect("Failed to serialize ProofPackage");
             fs::write(PROOF_FILE, &bytes).expect("Failed to write proof file");
 
@@ -108,18 +154,16 @@ fn main() {
                 "[SELLER] Saved proof package to {file}",
                 file = Path::new(PROOF_FILE).display()
             );
-            println!("[SELLER] Send H and {PROOF_FILE} to the buyer.");
+            println!("[SELLER] Send H, nonce, ciphertext (inside {PROOF_FILE}) to the buyer.");
         }
 
         "buyer" => {
-            // buyer <expected_hash_hex>
-            if args.is_empty() {
+            if args.len() < 1 {
                 eprintln!("Usage: buyer <expected_hash_hex>");
                 std::process::exit(1);
             }
             let expected_hash = &args[0];
 
-            // Read package from file
             let bytes = fs::read(PROOF_FILE).expect("Failed to read proof file");
             let pkg: ProofPackage =
                 bincode::deserialize(&bytes).expect("Failed to deserialize ProofPackage");
@@ -139,7 +183,7 @@ fn main() {
             eprintln!(
                 "Unknown role: {role}
 Usage:
-  seller <secret_string>
+  seller <secret_string> <image_path>
   buyer  <expected_hash_hex>"
             );
             std::process::exit(1);
