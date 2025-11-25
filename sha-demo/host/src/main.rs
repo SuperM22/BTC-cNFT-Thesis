@@ -4,6 +4,7 @@ use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use std::time::Instant;
 
 const PROOF_FILE: &str = "proof.bin";
 
@@ -11,6 +12,7 @@ const PROOF_FILE: &str = "proof.bin";
 #[derive(Serialize, Deserialize, Debug)]
 struct PublicJournal {
     hash_hex: String,
+    hash_img_hex: String, // in case we want to verify image hash as well
     nonce: [u8; 12],
     ciphertext: Vec<u8>,
 }
@@ -24,6 +26,7 @@ struct ProofPackage {
 
 /// Seller: prove “I know k and an image such that:
 ///   hash_hex = SHA256(k)
+///   hash_img_hex = SHA256(image)
 ///   ciphertext = Enc_k(image, nonce)”
 fn seller_prove(secret: &str, image_path: &str) -> ProofPackage {
     println!("[SELLER] Secret key k (string form): {secret}");
@@ -62,11 +65,13 @@ fn seller_prove(secret: &str, image_path: &str) -> ProofPackage {
 
     println!("[SELLER] Starting proof generation...");
     // Run the prover
+    let t0 = Instant::now();
     let prover = default_prover();
     let receipt = prover
         .prove(env, SHA_GUEST_ELF)
         .expect("Proving failed")
         .receipt;
+    println!("[SELLER] Proving took {:?}", t0.elapsed());
     println!("[SELLER] Proof generation completed.");
 
     println!("[SELLER] Verifying receipt...");
@@ -90,6 +95,7 @@ fn buyer_verify(expected_hash: &str, pkg: &ProofPackage) -> bool {
     println!("[BUYER] Expected H = {}", expected_hash);
     println!("[BUYER] Package hash H = {}", pkg.journal.hash_hex);
     println!("[BUYER] Package nonce (hex) = {}", hex::encode(pkg.journal.nonce));
+    println!("[BUYER] Package H_img = {}", pkg.journal.hash_img_hex);
     println!(
         "[BUYER] Ciphertext length in package: {} bytes",
         pkg.journal.ciphertext.len()
@@ -109,8 +115,11 @@ fn buyer_verify(expected_hash: &str, pkg: &ProofPackage) -> bool {
         .decode()
         .expect("Failed to decode journal from receipt");
 
+    // Check consistency but not really needed since receipt verification already checks this
     let ok = journal_from_receipt.hash_hex == pkg.journal.hash_hex
-        && journal_from_receipt.hash_hex == expected_hash;
+        && journal_from_receipt.hash_img_hex == pkg.journal.hash_img_hex
+        && journal_from_receipt.hash_hex == expected_hash
+        && journal_from_receipt.hash_hex == pkg.journal.hash_hex;
 
     if ok {
         println!("[BUYER] Proof is valid and H matches expected value.");

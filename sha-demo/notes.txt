@@ -91,3 +91,53 @@ WARNING: Proving in dev mode does not generate a valid receipt. Receipts generat
 
 Everything apparently works fine, should maybe ask to change the protocol and just encrypt the hash of the image.
 This would probably result in less proof building time 
+
+
+Full run logs with time (only H(img) is encrypted)
+
+mimmo@Mac sha-demo % cargo run -p host --release -- seller "hJAanHxbKHtDVcAvU9eVsTUPLYnBLt0Q" "/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/python_img/batman.png"
+
+   Compiling methods v0.1.0 (/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/sha-demo/methods)
+sha_guest: Starting build for riscv32im-risc0-zkvm-elfods(build)                                                                                         
+sha_guest:     Finished `release` profile [optimized] target(s) in 0.13s
+   Compiling host v0.1.0 (/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/sha-demo/host)
+    Finished `release` profile [optimized + debuginfo] target(s) in 38.98s
+     Running `target/release/host seller hJAanHxbKHtDVcAvU9eVsTUPLYnBLt0Q /Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/python_img/batman.png`
+[SELLER] Secret key k (string form): hJAanHxbKHtDVcAvU9eVsTUPLYnBLt0Q
+[SELLER] Secret string: hJAanHxbKHtDVcAvU9eVsTUPLYnBLt0Q
+[SELLER] Reading image from: /Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/python_img/batman.png
+[SELLER] Image size: 25575 bytes
+[SELLER] Nonce (hex): a05b2cf13cad560ef32987c5
+[SELLER] Starting proof generation...
+[GUEST] Encrypting image
+[GUEST] Image encrypted, ciphertext size: 48 bytes
+[GUEST] Committed public journal to host.
+
+[SELLER] Proving took 726.404971625s
+[SELLER] Proof generation completed.
+[SELLER] Verifying receipt...
+[SELLER] Guest ciphertext length: 48 bytes
+[SELLER] Saved proof package to proof.bin
+
+
+To check proof run:
+
+cargo run -p host --release -- buyer "expected H(k)"
+
+60d0e8b223ed058c0ef55a27b221e2447a9f1faa2fef8c6bf7c8343c83d201ca
+
+
+Protocol notes:
+
+The seller produces a journal containing
+{
+   H(k)
+   H(img) //in the case we want to verify the img hash
+   nonce //the nonce is produced from the secret k so that k can be arbitrary and nonce in the right format to encrypt for alg
+   Enc(nonce,H(img)) 
+}
+
+The encryption of the hash of the image will break the protocol making the buyer receive only the hash and not the full img.
+
+
+
