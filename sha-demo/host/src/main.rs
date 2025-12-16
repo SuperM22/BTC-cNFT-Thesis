@@ -12,7 +12,7 @@ const PROOF_FILE: &str = "proof.bin";
 #[derive(Serialize, Deserialize, Debug)]
 struct PublicJournal {
     hash_hex: String,
-    hash_img_hex: String, // in case we want to verify image hash as well
+    //hash_img_hex: String, // in case we want to verify image hash as well
     nonce: [u8; 12],
     ciphertext: Vec<u8>,
 }
@@ -95,7 +95,7 @@ fn buyer_verify(expected_hash: &str, pkg: &ProofPackage) -> bool {
     println!("[BUYER] Expected H = {}", expected_hash);
     println!("[BUYER] Package hash H = {}", pkg.journal.hash_hex);
     println!("[BUYER] Package nonce (hex) = {}", hex::encode(pkg.journal.nonce));
-    println!("[BUYER] Package H_img = {}", pkg.journal.hash_img_hex);
+    //println!("[BUYER] Package H_img = {}", pkg.journal.hash_img_hex);
     println!(
         "[BUYER] Ciphertext length in package: {} bytes",
         pkg.journal.ciphertext.len()
@@ -117,7 +117,7 @@ fn buyer_verify(expected_hash: &str, pkg: &ProofPackage) -> bool {
 
     // Check consistency but not really needed since receipt verification already checks this
     let ok = journal_from_receipt.hash_hex == pkg.journal.hash_hex
-        && journal_from_receipt.hash_img_hex == pkg.journal.hash_img_hex
+        //&& journal_from_receipt.hash_img_hex == pkg.journal.hash_img_hex
         && journal_from_receipt.hash_hex == expected_hash
         && journal_from_receipt.hash_hex == pkg.journal.hash_hex;
 

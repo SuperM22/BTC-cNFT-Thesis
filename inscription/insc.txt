@@ -1,0 +1,89 @@
+To perform an NFT inscription on btc ord , "ord" it's needed.
+
+the ord client needs to be run against the testnet in order for it to work.
+
+https://ordtutorial.vercel.app/ordtestnet
+
+ord --testnet4 \
+  --bitcoin-data-dir "/Users/mimmo/Library/Application Support/Bitcoin" \
+  --index-runes \
+  server
+
+
+leave this running on a shell.
+(might look stuck at indexing blocks near the end, but it actually finishes and it is actively listening on the port)
+
+-------------
+
+up till now I've created the ord wallet:
+
+ord --testnet4 wallet create
+{
+  "mnemonic": "brother casual proof earn remain own vendor script group digital normal guess",
+  "passphrase": ""
+}
+
+
+Then with 
+ord --testnet4 \
+  --bitcoin-data-dir "/Users/mimmo/Library/Application Support/Bitcoin" \
+  wallet receive
+
+we get an address, that has to be fund in order to complete an inscription.
+
+------------------
+I was trying to inscribe without actually using the nobackup flag and i always got the error:
+error: commit tx recovery key import failed
+
+I will further investigate
+
+mimmo@Mac ~ % ord --testnet4 wallet --name ord inscribe --no-backup \ 
+  --fee-rate 5 \
+  --file test.txt
+
+{
+  "commit": "3cc8c30ff7af5283320b158bff34c10c1ec4fe00b5dea955773f45431724fab7",
+  "commit_psbt": null,
+  "inscriptions": [
+    {
+      "destination": "tb1pfmj7xq2p4565umas9l68lfwn9hppkkw4p7qcp7puqkzzscwvykdqvyxx47",
+      "id": "5ed5780a8d4167ce935aa7da5e766de65f4cf16f9a2bb8bfe83a2f4b7b604f55i0",
+      "location": "5ed5780a8d4167ce935aa7da5e766de65f4cf16f9a2bb8bfe83a2f4b7b604f55:0:0"
+    }
+  ],
+  "parents": [],
+  "reveal": "5ed5780a8d4167ce935aa7da5e766de65f4cf16f9a2bb8bfe83a2f4b7b604f55",
+  "reveal_broadcast": true,
+  "reveal_psbt": null,
+  "rune": null,
+  "total_fees": 1465
+}
+
+
+Looks like that there is a bug in newer versions of btc core that leads inscribe command to fail:
+Basically performing this command leads to store a safety key that helps to recover the funds if the transaction is not succesfull.
+This key storing process is just an "import descriptor" bitcoin core call that can fail, resulting in the previous error.
+Inscribing with no backup means to be screwed in the case the transaction is not mined.
+
+
+When the revealing transaction is confirmed we can see it in the wallet:
+
+
+
+ord --testnet4 wallet inscriptions                                                                  
+
+[
+  {
+    "inscription": "5ed5780a8d4167ce935aa7da5e766de65f4cf16f9a2bb8bfe83a2f4b7b604f55i0",
+    "location": "5ed5780a8d4167ce935aa7da5e766de65f4cf16f9a2bb8bfe83a2f4b7b604f55:0:0",
+    "explorer": "https://testnet4.ordinals.com/inscription/5ed5780a8d4167ce935aa7da5e766de65f4cf16f9a2bb8bfe83a2f4b7b604f55i0",
+    "postage": 10000
+  }
+]
+
+
+
+new findings:
+btc inscritpion can actually go to a maximum of 4MB (due to witness siz in block)
+The biggest ever recorded is : https://ordiscan.com/inscription/79351656
+

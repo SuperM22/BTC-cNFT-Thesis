@@ -15,7 +15,7 @@ struct PublicJournal {
     hash_hex: String,
     /// H_img = SHA256(image), hex-encoded
     /// in case we want to verify image hash as well
-    hash_img_hex: String,
+    //hash_img_hex: String,
     /// 12-byte AEAD nonce
     nonce: [u8; 12],
     /// ciphertext = Enc(k, image)
@@ -40,10 +40,10 @@ fn main() {
 
     //H_img = SHA256(image) in case we want to verify image hash as well
 
-    let mut hasher_img = Sha256::new();
-    hasher_img.update(&image);
-    let h_img = hasher_img.finalize();// 32 bytes
-    let hash_img_hex = format!("{:x}", h_img);
+    // let mut hasher_img = Sha256::new();
+    // hasher_img.update(&image);
+    // let h_img = hasher_img.finalize();// 32 bytes
+    // let hash_img_hex = format!("{:x}", h_img);
 
     //
     // Encryption key = k
@@ -63,7 +63,7 @@ fn main() {
     println!("[GUEST] Encrypting image");
     let ciphertext = cipher
         //.encrypt(nonce, image.as_ref()) // Encrypt the image bytes
-        .encrypt(nonce, h_img.as_slice()) // Encrypt the raw digest bytes
+        .encrypt(nonce, image.as_slice()) // Encrypt the raw digest bytes
         .expect("encryption failed inside zkVM");
     println!("[GUEST] Image encrypted, ciphertext size: {} bytes", ciphertext.len());
     //
@@ -71,7 +71,7 @@ fn main() {
     //
     let journal = PublicJournal {
         hash_hex,
-        hash_img_hex, // in case we want to verify image hash as well
+        //hash_img_hex, // in case we want to verify image hash as well
         nonce: nonce_bytes,
         ciphertext,
     };
