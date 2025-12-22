@@ -1,0 +1,9 @@
+{
+  "file": "/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/python_img/4MB.png",
+  "fileSizeBytes": 3411634,
+  "chunkBytes": 31,
+  "chunkCountN": 110053,
+  "packing": "little-endian: sum(byte[i] * 256^i)",
+  "keyHex": "0xb17377437627d8749827d93b0a8f8adab513fea9b180a5cc81e4f0ca817f21cc",
+  "nonceDecimal": "137706360640215838791126303469434275141"
+}

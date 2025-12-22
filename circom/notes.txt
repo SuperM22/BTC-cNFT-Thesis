@@ -1,0 +1,25 @@
+CIRCOM TAKE 2
+
+Encryption key:
+0xe5807e807a827b903626fc27962c6d0853dc6def2aebb80fd56743ba8b4934df
+
+
+The input is generated thorugh the apposit js script (located in python_img folder).
+Thenthe input file is moved in this folder.
+
+THE N MUST BE SET CORRECTLY WRT TO THE INPUT SIZE,
+IT IS OUTPUT FROM THE SCRIPT AND MUST BE SET in the main when the function is called.
+
+Build witness :
+
+node build/ImageEncWithKeyHash_js/generate_witness.js \
+  build/ImageEncWithKeyHash_js/ImageEncWithKeyHash.wasm \
+  input.json \
+  build/witness.wtns
+
+Power of tau things:
+snarkjs groth16 setup build/ImageEncWithKeyHash.r1cs build/pot14_final.ptau build/circuit_0000.zkey
+snarkjs zkey contribute build/circuit_0000.zkey build/circuit_final.zkey --name="zkey1" -v -e="random2"
+snarkjs zkey export verificationkey build/circuit_final.zkey build/verification_key.json
+
+

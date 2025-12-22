@@ -1,0 +1,9 @@
+{
+  "file": "/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/python_img/batman.png",
+  "fileSizeBytes": 25575,
+  "chunkBytes": 31,
+  "chunkCountN": 825,
+  "packing": "little-endian: sum(byte[i] * 256^i)",
+  "keyHex": "0xe5807e807a827b903626fc27962c6d0853dc6def2aebb80fd56743ba8b4934df",
+  "nonceDecimal": "62300069812652757791117425978691623483"
+}
