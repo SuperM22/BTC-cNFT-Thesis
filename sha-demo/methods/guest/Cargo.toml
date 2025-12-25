@@ -6,8 +6,8 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-risc0-zkvm = { version = "^3.0.3", default-features = false, features = ['std'] }
+risc0-zkvm = { version = "*", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
 hex = "0.4"
 chacha20poly1305 = "0.10"
-sha2 = "0.10"
-serde = { version = "1", features = ["derive"] }

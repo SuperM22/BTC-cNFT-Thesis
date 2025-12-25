@@ -5,9 +5,11 @@ edition = "2021"
 
 [dependencies]
 methods = { path = "../methods" }
-risc0-zkvm = { version = "^3.0.3" }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-serde = "1.0"
+risc0-zkvm = "*"
+serde = { version = "1", features = ["derive"] }
 bincode = "1"
 hex = "0.4"
 rand = "0.8"
+sha2 = "0.10"
+image = "0.25"
+

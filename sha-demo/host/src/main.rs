@@ -1,201 +1,124 @@
 use methods::{SHA_GUEST_ELF, SHA_GUEST_ID};
-use rand::RngCore;
-use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
+use risc0_zkvm::{default_prover, ExecutorEnv};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use rand::RngCore;
 use std::time::Instant;
 
-const PROOF_FILE: &str = "proof.bin";
-
-/// Public outputs from the guest (must match guest's PublicJournal)
-#[derive(Serialize, Deserialize, Debug)]
-struct PublicJournal {
-    hash_hex: String,
-    //hash_img_hex: String, // in case we want to verify image hash as well
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Header {
+    width: u32,
+    height: u32,
+    channels: u8, // 3
+    stride: u32,
     nonce: [u8; 12],
+    k: [u8; 32],
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Journal {
+    hk: [u8; 32],
+    himg: [u8; 32],
+    nonce: [u8; 12],
+    stride: u32,
+    down_w: u32,
+    down_h: u32,
+    downgraded: Vec<u8>,
     ciphertext: Vec<u8>,
 }
 
-/// What the seller sends to the buyer
-#[derive(Serialize, Deserialize, Debug)]
-struct ProofPackage {
-    journal: PublicJournal,
-    receipt: Receipt,
-}
-
-/// Seller: prove “I know k and an image such that:
-///   hash_hex = SHA256(k)
-///   hash_img_hex = SHA256(image)
-///   ciphertext = Enc_k(image, nonce)”
-fn seller_prove(secret: &str, image_path: &str) -> ProofPackage {
-    println!("[SELLER] Secret key k (string form): {secret}");
-
-    let k_bytes = secret.as_bytes().to_vec();
-    if k_bytes.len() != 32 {
-        eprintln!("WARNING: ChaCha20Poly1305 requires k to be exactly 32 bytes.");
-    }
-
-    println!("[SELLER] Secret string: {secret}");
-    println!("[SELLER] Reading image from: {image_path}");
-
-    // Read image bytes
-    let image = fs::read(image_path).expect("Failed to read image file");
-
-    println!("[SELLER] Image size: {} bytes", image.len());
-
-    // Generate a random 12-byte nonce
-    let mut nonce = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce);
-    println!("[SELLER] Nonce (hex): {}", hex::encode(nonce));
-
-    // Convert secret k into raw bytes
-    let k_bytes = secret.as_bytes().to_vec();
-
-    // Build executor environment and send inputs to the guest
-    let env = ExecutorEnv::builder()
-        .write(&k_bytes) // k
-        .unwrap()
-        .write(&image) // image bytes
-        .unwrap()
-        .write(&nonce) // nonce
-        .unwrap()
-        .build()
-        .unwrap();
-
-    println!("[SELLER] Starting proof generation...");
-    // Run the prover
-    let t0 = Instant::now();
-    let prover = default_prover();
-    let receipt = prover
-        .prove(env, SHA_GUEST_ELF)
-        .expect("Proving failed")
-        .receipt;
-    println!("[SELLER] Proving took {:?}", t0.elapsed());
-    println!("[SELLER] Proof generation completed.");
-
-    println!("[SELLER] Verifying receipt...");
-    // Decode journal from the receipt
-    let journal: PublicJournal = receipt
-        .journal
-        .decode()
-        .expect("Failed to decode journal as PublicJournal");
-
-    //println!("[SELLER] Guest reported hash H = {}", journal.hash_hex);
-    println!(
-        "[SELLER] Guest ciphertext length: {} bytes",
-        journal.ciphertext.len()
-    );
-
-    ProofPackage { journal, receipt }
-}
-
-/// Buyer: verify proof and check the hash matches expected H
-fn buyer_verify(expected_hash: &str, pkg: &ProofPackage) -> bool {
-    println!("[BUYER] Expected H = {}", expected_hash);
-    println!("[BUYER] Package hash H = {}", pkg.journal.hash_hex);
-    println!("[BUYER] Package nonce (hex) = {}", hex::encode(pkg.journal.nonce));
-    //println!("[BUYER] Package H_img = {}", pkg.journal.hash_img_hex);
-    println!(
-        "[BUYER] Ciphertext length in package: {} bytes",
-        pkg.journal.ciphertext.len()
-    );
-
-    // Verify zk-proof against the guest image
-    if let Err(e) = pkg.receipt.verify(SHA_GUEST_ID) {
-        eprintln!("[BUYER] Receipt verification FAILED: {e}");
-        return false;
-    }
-    println!("[BUYER] Receipt verification OK.");
-
-    // Ensure journal hash equals package hash and expected hash
-    let journal_from_receipt: PublicJournal = pkg
-        .receipt
-        .journal
-        .decode()
-        .expect("Failed to decode journal from receipt");
-
-    // Check consistency but not really needed since receipt verification already checks this
-    let ok = journal_from_receipt.hash_hex == pkg.journal.hash_hex
-        //&& journal_from_receipt.hash_img_hex == pkg.journal.hash_img_hex
-        && journal_from_receipt.hash_hex == expected_hash
-        && journal_from_receipt.hash_hex == pkg.journal.hash_hex;
-
-    if ok {
-        println!("[BUYER] Proof is valid and H matches expected value.");
-    } else {
-        eprintln!("[BUYER] Hash mismatch between receipt/package/expected.");
-    }
-
-    ok
+fn parse_k_32(hex_str: &str) -> [u8; 32] {
+    let s = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+    let raw = hex::decode(s).expect("invalid hex key");
+    assert_eq!(raw.len(), 32, "k must be 32 bytes (64 hex chars)");
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&raw);
+    out
 }
 
 fn main() {
-    let mut args = std::env::args().skip(1).collect::<Vec<_>>();
-
-    if args.is_empty() {
+    // Usage:
+    // cargo run --release -- <rgb.bin> <width> <height> <k_hex32> <stride>
+    //
+    // Example:
+    // cargo run --release -- rgb.bin 1024 768 0xf56c...e896b 8
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 6 {
         eprintln!(
-            "Usage:
-  seller <secret_string> <image_path>     # generate proof, encrypt image, write {file}
-  buyer  <expected_hash_hex>             # read {file} and verify",
-            file = PROOF_FILE
+            "Usage: {} <rgb.bin> <width> <height> <k_hex32> <stride>",
+            args[0]
         );
         std::process::exit(1);
     }
 
-    let role = args.remove(0);
-
-    match role.as_str() {
-        "seller" => {
-            if args.len() < 2 {
-                eprintln!("Usage: seller <secret_string> <image_path>");
-                std::process::exit(1);
-            }
-            let secret = &args[0];
-            let image_path = &args[1];
-
-            let pkg = seller_prove(secret, image_path);
-
-            let bytes = bincode::serialize(&pkg).expect("Failed to serialize ProofPackage");
-            fs::write(PROOF_FILE, &bytes).expect("Failed to write proof file");
-
-            println!(
-                "[SELLER] Saved proof package to {file}",
-                file = Path::new(PROOF_FILE).display()
-            );
-            println!("[SELLER] Send H, nonce, ciphertext (inside {PROOF_FILE}) to the buyer.");
-        }
-
-        "buyer" => {
-            if args.len() < 1 {
-                eprintln!("Usage: buyer <expected_hash_hex>");
-                std::process::exit(1);
-            }
-            let expected_hash = &args[0];
-
-            let bytes = fs::read(PROOF_FILE).expect("Failed to read proof file");
-            let pkg: ProofPackage =
-                bincode::deserialize(&bytes).expect("Failed to deserialize ProofPackage");
-
-            println!(
-                "[BUYER] Loaded proof package from {file}",
-                file = Path::new(PROOF_FILE).display()
-            );
-
-            let ok = buyer_verify(expected_hash, &pkg);
-            if !ok {
-                std::process::exit(1);
-            }
-        }
-
-        _ => {
-            eprintln!(
-                "Unknown role: {role}
-Usage:
-  seller <secret_string> <image_path>
-  buyer  <expected_hash_hex>"
-            );
-            std::process::exit(1);
-        }
+    let bin_path = &args[1];
+    let width: u32 = args[2].parse().expect("width must be int");
+    let height: u32 = args[3].parse().expect("height must be int");
+    let k = parse_k_32(&args[4]);
+    let stride: u32 = args[5].parse().expect("stride must be int");
+    if stride == 0 {
+        eprintln!("stride must be >= 1");
+        std::process::exit(1);
     }
+
+    // Read raw RGB bytes
+    let rgb = fs::read(bin_path).expect("failed to read rgb.bin");
+
+    let expected = width as usize * height as usize * 3usize;
+    if rgb.len() != expected {
+        eprintln!(
+            "rgb.bin size mismatch: got {} bytes, expected {} (= {}*{}*3)",
+            rgb.len(),
+            expected,
+            width,
+            height
+        );
+        std::process::exit(1);
+    }
+
+    // Nonce from host
+
+    let mut nonce = [0u8; 12];
+    rand::thread_rng().fill_bytes(&mut nonce);
+
+    let header = Header {
+        width,
+        height,
+        channels: 3,
+        stride,
+        nonce,
+        k,
+    };
+
+    // IMPORTANT: small header via write(), big matrix via write_slice()
+    let mut builder = ExecutorEnv::builder();
+    builder.write(&header).expect("write header failed");
+    builder.write_slice(&rgb);
+    let env = builder.build().expect("build env failed");
+
+    println!("Proving... (this may take a while)");
+    let prover = default_prover();
+    let start = Instant::now();
+    let receipt = prover.prove(env, SHA_GUEST_ELF).expect("prove failed").receipt;
+    let duration = start.elapsed();
+    println!("Proving done in: {:?}", duration);
+
+    receipt.verify(SHA_GUEST_ID).expect("receipt verify failed");
+
+    let journal: Journal = receipt.journal.decode().expect("decode journal failed");
+
+    println!("H(k)   = {}", hex::encode(journal.hk));
+    println!("H(img) = {}", hex::encode(journal.himg));
+    println!("nonce  = {}", hex::encode(journal.nonce));
+    println!("ciphertext bytes = {}", journal.ciphertext.len());
+    println!(
+        "downgraded: {}x{} (RGB) bytes={}",
+        journal.down_w,
+        journal.down_h,
+        journal.downgraded.len()
+    );
+
+    // If you want, you can save outputs:
+    // fs::write("ciphertext.bin", &journal.ciphertext).unwrap();
+    // fs::write("preview_rgb.bin", &journal.downgraded).unwrap();
 }
