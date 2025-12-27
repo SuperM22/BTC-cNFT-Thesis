@@ -1,0 +1,11 @@
+RUNS
+
+
+512x512 (batman) NO HASH (hardcoded)
+
+Proving done in: 31837.1186365s
+H(k)   = a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe67902988642
+H(img) = d268cdbd7edf93f88f25951db5b33b63cb048ad94b621ca50efa6e422372a627
+nonce  = ac4c992eb1b6bd47e15843c2
+ciphertext bytes = 786448
+downgraded: 64x64 (RGB) bytes=12288

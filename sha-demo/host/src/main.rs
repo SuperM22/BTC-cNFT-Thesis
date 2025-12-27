@@ -1,6 +1,7 @@
 use methods::{SHA_GUEST_ELF, SHA_GUEST_ID};
-use risc0_zkvm::{default_prover, ExecutorEnv};
+use risc0_zkvm::{default_prover, ExecutorEnv,Receipt};
 use serde::{Deserialize, Serialize};
+use image::{ImageBuffer, Rgb};
 use std::fs;
 use rand::RngCore;
 use std::time::Instant;
@@ -36,6 +37,32 @@ fn parse_k_32(hex_str: &str) -> [u8; 32] {
     out
 }
 
+// Dump the downgraded image from the proof's journal to a PNG file
+fn dump_downgraded_png(proof_path: &str, out_png: &str) {
+    //  Load receipt
+    let bytes = fs::read(proof_path).expect("read proof failed");
+    let receipt: Receipt = bincode::deserialize(&bytes).expect("deserialize receipt failed");
+
+    // Verify receipt (recommended)
+    receipt.verify(SHA_GUEST_ID).expect("receipt verify failed");
+
+    // Decode journal
+    let journal: Journal = receipt.journal.decode().expect("decode journal failed");
+
+    // Rebuild image
+    let w = journal.down_w;
+    let h = journal.down_h;
+    let expected = (w as usize) * (h as usize) * 3usize;
+    assert_eq!(journal.downgraded.len(), expected, "downgraded size mismatch");
+
+    let img: ImageBuffer<Rgb<u8>, Vec<u8>> =
+        ImageBuffer::from_raw(w, h, journal.downgraded).expect("from_raw failed");
+
+    // Save PNG
+    img.save(out_png).expect("save png failed");
+    println!("Wrote {}", out_png);
+}
+
 fn main() {
     // Usage:
     // cargo run --release -- <rgb.bin> <width> <height> <k_hex32> <stride>
@@ -43,7 +70,16 @@ fn main() {
     // Example:
     // cargo run --release -- rgb.bin 1024 768 0xf56c...e896b 8
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 6 {
+
+    // Usage: cargo run --release -p host -- dump proof.bin downgraded.png
+    if args.len() >= 2 && args[1] == "dump" {
+        let proof_path = args.get(2).map(|s| s.as_str()).unwrap_or("proof.bin");
+        let out_png = args.get(3).map(|s| s.as_str()).unwrap_or("downgraded.png");
+        dump_downgraded_png(proof_path, out_png);
+        return;
+    }
+
+    else if args.len() < 6 {
         eprintln!(
             "Usage: {} <rgb.bin> <width> <height> <k_hex32> <stride>",
             args[0]
@@ -118,7 +154,10 @@ fn main() {
         journal.downgraded.len()
     );
 
-    // If you want, you can save outputs:
+    let proof_bytes = bincode::serialize(&receipt).expect("serialize receipt failed");
+    std::fs::write("proof.bin", proof_bytes).expect("write proof.bin failed");
+    println!("Saved proof.bin");
+
     // fs::write("ciphertext.bin", &journal.ciphertext).unwrap();
     // fs::write("preview_rgb.bin", &journal.downgraded).unwrap();
 }
