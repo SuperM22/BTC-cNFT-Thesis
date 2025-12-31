@@ -81,14 +81,16 @@ pub fn main() {
     let hk: [u8; 32] = Sha256::digest(&header.k).into();
     println!("hk: {:x?}", hk);
 
-    let himg: [u8; 32] = [
+    let himg: [u8; 32] = Sha256::digest(&img).into(); //real hash computation
+    
+    /*[
     0xd2, 0x68, 0xcd, 0xbd, 0x7e, 0xdf, 0x93, 0xf8,
     0x8f, 0x25, 0x95, 0x1d, 0xb5, 0xb3, 0x3b, 0x63,
     0xcb, 0x04, 0x8a, 0xd9, 0x4b, 0x62, 0x1c, 0xa5,
     0x0e, 0xfa, 0x6e, 0x42, 0x23, 0x72, 0xa6, 0x27,
-]; //fake hash to skip computation
+]; //fake hash to skip computation  */
     
-    //Sha256::digest(&img).into(); //real hash computation
+    
 
     println!("himg calulated");
 
