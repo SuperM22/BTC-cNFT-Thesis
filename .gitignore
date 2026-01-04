@@ -1,0 +1,7 @@
+proofs/
+circom/build/
+python_img/images/
+sha-demo/.DS_Store
+sha-demo/Cargo.lock
+sha-demo/methods/guest/Cargo.lock
+sha-demo/target/

@@ -1,9 +1,0 @@
-Following:
-https://www.youtube.com/watch?v=_AHsyRkd2is
-
-Created new proj with
-
-nargo new noir
-
-
-apparently nargo check gives error on imported libraries , I'll discontinue noir usage

@@ -1,0 +1,11 @@
+{
+  "protocol": "cnft-btc-v1",
+  "name": "Confidential NFT #1",
+  "description": "Encrypted high-resolution asset with ZKCP-based fair exchange",
+  "ciphertext_cid": "",
+  "ciphertext_sha256": "",
+  "zk_proof_cid": "",
+  "secret_hash": "a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe6790298864288",
+  "script_type": "p2wsh-hashlock-cltv",
+  "network": "testnet4"
+}
