@@ -93,3 +93,14 @@ sha 256 on H
 
 94C6C858E0CBE5C8BCE37A5565C10B727EE7C69017D6B4D3061513C0FB0BC92F
 
+------------------------------------------------------------------------------------------------------
+Notes for wsl and windows run:
+
+
+To copy the local repo to wsl:
+
+ rsync -a --delete "/mnt/f/Cloned Repos/BTC-cNFT-Thesis/" ~/projects/BTC-cNFT-Thesis/
+
+ then go in proj directory and run the proj:
+
+ cargo run --release -p host -- 600.bin 600 600 0xf56c1a8ef50e1fc0feaa27c7d927f2bd03a9a4d040944e72e58b2aaeb20e896b 8

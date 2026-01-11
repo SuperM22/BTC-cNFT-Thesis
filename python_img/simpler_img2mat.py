@@ -3,7 +3,7 @@ import sys
 import cv2
 
 # Usage:
-#   python3 png_to_rgbbin.py input.png output.bin
+#   python3 simpler_img2mat.py input.png output.bin
 # Produces raw bytes: RGB row-major, shape = [H][W][3] (uint8)
 
 inp, out = sys.argv[1], sys.argv[2]
