@@ -1,0 +1,11 @@
+[package]
+name = "verifier"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+risc0-zkvm = "*"
+risc0-binfmt = "*"
+bincode = "1"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }

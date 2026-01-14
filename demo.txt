@@ -1,0 +1,96 @@
+DEMO STEPS:
+
+1. Ordinals inscription:
+
+Drive link:
+https://drive.google.com/file/d/1ykyakOknemtTz_dz2KrFeQAM92QlNJdn/view?usp=drive_link
+
+
+
+- start ord client
+- inscribe
+
+/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/inscription/insc.json
+
+ord --testnet4 wallet --name ord inscribe --no-backup \
+  --fee-rate 5 \
+  --file "/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/inscription/insc.json"
+
+OUTPUT 
+
+{
+  "commit": "6d9440829a80cf7239b6fbe7fbdd8f96c835912a7061db146ac1273cd78077a5",
+  "commit_psbt": null,
+  "inscriptions": [
+    {
+      "destination": "tb1pnt6qspxal780tltp74h6qwnssqlug244ztnnqnwk82z8zep4xassqrtpa9",
+      "id": "7b59080b7a7b2db9966c202ae64f9be6c781d2e26f5191b1592e69bc6a4ede48i0",
+      "location": "7b59080b7a7b2db9966c202ae64f9be6c781d2e26f5191b1592e69bc6a4ede48:0:0"
+    }
+  ],
+  "parents": [],
+  "reveal": "7b59080b7a7b2db9966c202ae64f9be6c781d2e26f5191b1592e69bc6a4ede48",
+  "reveal_broadcast": true,
+  "reveal_psbt": null,
+  "rune": null,
+  "total_fees": 1790
+}
+
+
+
+
+To see the inscription content start the ord server on a choosen port:
+
+ord --testnet4 \
+  --bitcoin-data-dir "/Users/mimmo/Library/Application Support/Bitcoin" \
+  --index-runes \
+  server --http-port 8080
+
+Then on another shell:
+curl -s "http://127.0.0.1:8080/content/id"
+
+in this case: 
+curl -s "http://127.0.0.1:8080/content/7b59080b7a7b2db9966c202ae64f9be6c781d2e26f5191b1592e69bc6a4ede48i0"
+
+2. Protocol setup
+
+The seller will compute the proof containing:
+
+struct Journal {
+    hk: [u8; 32],
+    himg: [u8; 32],
+    nonce: [u8; 12],
+    stride: u32,
+    down_w: u32,
+    down_h: u32,
+    downgraded: Vec<u8>,
+    ciphertext: Vec<u8>,
+}
+
+3. advertising
+
+Somehow the seller shows the downgraded proof to some buyer.
+the buyer will verify the proof.
+
+4. verification
+(packet for the verifier should be: proof.bin guest.bin ?verifiercode)
+
+As the R0 documentation says, the verifier will be provided with the elf file of the project.
+this can be found at sha-demo/target/riscv-guest/methods/sha_guest/riscv32im-risc0-zkvm-elf/release
+from this file the verifier will extract the image id of the program and then check the proof against it.
+
+Actually is not the elf file but the binary.
+
+local paths for verification:
+/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/sha-demo/target/riscv-guest/methods/sha_guest/riscv32im-risc0-zkvm-elf/release/sha_guest.bin
+/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/proofs/proof_700_sha.bin
+
+
+5. buyer creates the p2wsh with the H(k) derived from the proof
+
+
+6. The seller redeems the funds by revealing k on chain
+
+7. the buyer decrypts the cypher text via k and the nonce
+
+????? What about the ownership of the nft ??????

@@ -1,11 +1,7 @@
 {
-  "protocol": "cnft-btc-v1",
-  "name": "Confidential NFT #1",
-  "description": "Encrypted high-resolution asset with ZKCP-based fair exchange",
-  "ciphertext_cid": "",
-  "ciphertext_sha256": "",
-  "zk_proof_cid": "",
-  "secret_hash": "a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe6790298864288",
-  "script_type": "p2wsh-hashlock-cltv",
-  "network": "testnet4"
+  "protocol": "nft-ord-v1",
+  "name": "NFT #1",
+  "description": "700x700px  NFT",
+  "image_url": "https://drive.google.com/file/d/1ykyakOknemtTz_dz2KrFeQAM92QlNJdn/view?usp=drive_link",
+  "sha256": "35b5e5205bdcf54bb1a1964b261100bdac30a470021d6b72bd4c30889058b0ef"
 }
