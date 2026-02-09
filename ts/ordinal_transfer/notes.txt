@@ -1,0 +1,296 @@
+p2wsh output
+
+---------SELLER SIDE
+
+H (sha256 of secret): a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe67902988642
+Seller WIF (KEEP SECRET): cPdtBngjBeLFqMW28Uw97cT7WA53ttyfNS9PRE3wc4CcvxaxiELY
+Seller pubkey: 038da211246d44f6bc24b47f4ba05d2bb27e8e3689af2ac9d6d105833ff693706a
+Buyer WIF (KEEP SECRET): cRBMLXeE8nWN7ZQ9i7B2JpFrtgkfxg9uTyM26HKppZc88uZjJcVv
+Buyer pubkey: 0343965ae5ec3407c3e8cae3d3a443d41ed803e46e6c0a80b0a8508a97fde35177
+Refund CLTV locktime: 120193
+witnessScript hex: 63a820a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe6790298864288210343965ae5ec3407c3e8cae3d3a443d41ed803e46e6c0a80b0a8508a97fde35177ac670381d501b17521038da211246d44f6bc24b47f4ba05d2bb27e8e3689af2ac9d6d105833ff693706aac68
+P2WSH scriptPubKey hex: 00200d19dfbd0c2f8548204579d20f62dbd78dae844455fd0b1fa768554895288a70
+P2WSH address: tb1qp5val0gv97z5sgz908fq7ckm67x6apzy2h7sk8a8dp2539fg3fcqwczy8y
+
+
+Once the address is created I'll have to correctly fund it with a tx consisting of 2 inputs:
+VOUT 0 must be the inscription
+VOUT 1 must be the fees
+
+
+The ord is located at (can be found via ord --testnet4 wallet inscriptions):
+"location": "7b59080b7a7b2db9966c202ae64f9be6c781d2e26f5191b1592e69bc6a4ede48:0:0",
+wich means at vout=0
+
+Always make sure about the amount that an ord contains, (the ord was inscribed on 1000 sats)
+can do that via:
+ord --testnet4 wallet outputs
+
+------------------------VARIABLES TO SET + command -----------
+ESCROW_ADDR="tb1qp5val0gv97z5sgz908fq7ckm67x6apzy2h7sk8a8dp2539fg3fcqwczy8y"
+INSCR_TXID="7b59080b7a7b2db9966c202ae64f9be6c781d2e26f5191b1592e69bc6a4ede48"
+INSCR_VOUT=0
+INSCR_AMT_BTC="0.00010000"
+FEE_TXID="6d9440829a80cf7239b6fbe7fbdd8f96c835912a7061db146ac1273cd78077a5"
+FEE_VOUT=1
+
+new address to get the change of the fee
+CHANGE_ADDR=$(bitcoin-cli getrawchangeaddress bech32m) 
+echo "CHANGE_ADDR=$CHANGE_ADDR"
+CHANGE_ADDR=tb1pyf5snju2p83efh5m8qmunxyrvd9zgnj2ng809tqdsc05pwrsuuvspv8shq
+
+
+PSBT=$(bitcoin-cli walletcreatefundedpsbt \ 
+  "[{\"txid\":\"$INSCR_TXID\",\"vout\":$INSCR_VOUT},{\"txid\":\"$FEE_TXID\",\"vout\":$FEE_VOUT}]" \
+  "[{\"$ESCROW_ADDR\":$INSCR_AMT_BTC}]" \
+  0 \
+  "{\"add_inputs\":false,\"changeAddress\":\"$CHANGE_ADDR\",\"changePosition\":1,\"fee_rate\":5,\"lockUnspents\":true}" \
+  | jq -r .psbt)
+
+echo "PSBT=$PSBT"
+
+PSBT=cHNidP8BALICAAAAAkjeTmq8aS5ZsZFRb+LSgcfmm0/mKiBslrkte3oLCFl7AAAAAAD9////pXeA1zwnwWoU22FwKpE1yJaP3fvn+7Y5cs+AmoJAlG0BAAAAAP3///8CECcAAAAAAAAiACANGd+9DC+FSCBFedIPYtvXja6ERFX9Cx+naFVIlSiKcFVkAAAAAAAAIlEgImkJy4oJ45Temzg3yZiDY0okTkqaDvKsDYYfQLhw5xkAAAAAAAEBKxAnAAAAAAAAIlEgmvQIBN3/jvX9YfVvoDpwgD/EKrUS5zBN1jqEcWQ1N2EhFihE7zH/DJXQdHufmrJiLUmI/6c1kZ6J4+SY29L3DB7oGQBnD1WmVgAAgAEAAIAAAACAAQAAABUAAAABFyAoRO8x/wyV0HR7n5qyYi1JiP+nNZGeiePkmNvS9wwe6AABASt5aAAAAAAAACJRILzI2FbISyIZ6t0cwqAVNQuA9TQosfXHN0iy5Z2SpljrIRZ4IPc2QhpTooZJboZ26wbdfD+z0HyC5d4jwjv/VntVnxkAZw9VplYAAIABAACAAAAAgAEAAAAXAAAAARcgeCD3NkIaU6KGSW6GdusG3Xw/s9B8guXeI8I7/1Z7VZ8AAAEFIMZhx5+0opiB9l5ugHjB/Q1dnt05QeyTGoI3QydTnT2ZIQfGYceftKKYgfZeboB4wf0NXZ7dOUHskxqCN0MnU509mRkAZw9VplYAAIABAACAAAAAgAEAAAAZAAAAAA==
+
+double check the psbt with:
+
+bitcoin-cli decodepsbt "$PSBT" | jq '{vin: .tx.vin, vout: .tx.vout}'
+
+sign and finalize with :
+
+SIGNED_PSBT=$(bitcoin-cli  walletprocesspsbt "$PSBT" | jq -r .psbt)
+FINAL_HEX=$(bitcoin-cli  finalizepsbt "$SIGNED_PSBT" true | jq -r .hex)
+echo "FINAL_HEX=$FINAL_HEX"
+
+then check if the tx would be accepted: (in the output seek for "allowed":true)
+
+bitcoin-cli testmempoolaccept "[\"$FINAL_HEX\"]"
+
+
+broadcast:
+
+ESCROW_FUND_TXID=$(bitcoin-cli sendrawtransaction "$FINAL_HEX")
+echo "Escrow funded in tx: $ESCROW_FUND_TXID"
+
+Escrow funded in tx: 3780e7bb43ae7d72eba20c7c6a57c685f2eb79f28ec6cbac45c08d7e0c003922
+
+
+now the p2wsh is ready for the buyer to redeem.
+
+
+TO redeem the p2wsh we need two steps:
+build the psbt with ordinal_buyer_claim_p1 and finalize it with p2
+THE FLOW IS::
+1. run script p1
+2. run bitcoin-cli --rpcwallet="buyer_wallet" walletprocesspsbt "$PSBT" | jq -r .psbt , save it to a variable and put the signed output in the p2 script 
+3. run script p2
+4.extract and broadcast
+
+
+IMPORTANT NOTE : THE ONE WHO OWNS THE CHANGE (the taproot founder) must sign the tx at point 2.
+in practice:
+1. PSBT=$(node ordinal_buyer_claim_p1.js)
+2. PSBT_CORE=$(bitcoin-cli --rpcwallet="buyer_wallet" walletprocesspsbt "$PSBT" | jq -r .psbt)
+3. echo it and put it in p2
+4. PSBT_FINAL=$(node ordinal_buyer_claim_p2.js)
+FINAL_HEX=$(bitcoin-cli --rpcwallet="buyer_wallet" finalizepsbt "$PSBT_FINAL" true | jq -r .hex)
+
+TO TEST ACCEPTANCE:
+bitcoin-cli testmempoolaccept "[\"$FINAL_HEX\"]"
+
+TO BROADCAST:
+bitcoin-cli sendrawtransaction "$FINAL_HEX"
+
+p1 output:
+cHNidP8BALICAAAAAiI5AAx+jcBFrMvGjvJ56/KFxldqfAyi63J9rkO754A3AAAAAAD/////IjkADH6NwEWsy8aO8nnr8oXGV2p8DKLrcn2uQ7vngDcBAAAAAP////8CECcAAAAAAAAiUSCPboF+PbYAWd1uJmMuEa3OZ3zd6/Bm7QKeVbAgl3OIEoVcAAAAAAAAIlEgIHUW23YmBi9y9skpoNbRS1Q5QwTBrAQ8sZA0AO6xDFYAAAAAAAEBKxAnAAAAAAAAIgAgDRnfvQwvhUggRXnSD2Lb142uhERV/Qsfp2hVSJUoinAAAQErVWQAAAAAAAAiUSAiaQnLignjlN6bODfJmINjSiROSpoO8qwNhh9AuHDnGQAAAA==
+
+p2 output:
+
+node ordinal_buyer_claim_p2.js
+cHNidP8BALICAAAAAiI5AAx+jcBFrMvGjvJ56/KFxldqfAyi63J9rkO754A3AAAAAAD/////IjkADH6NwEWsy8aO8nnr8oXGV2p8DKLrcn2uQ7vngDcBAAAAAP////8CECcAAAAAAAAiUSCPboF+PbYAWd1uJmMuEa3OZ3zd6/Bm7QKeVbAgl3OIEoVcAAAAAAAAIlEgIHUW23YmBi9y9skpoNbRS1Q5QwTBrAQ8sZA0AO6xDFYAAAAAAAEBKxAnAAAAAAAAIgAgDRnfvQwvhUggRXnSD2Lb142uhERV/Qsfp2hVSJUoinABBwABCN8ERzBEAiBmBIuoES16crDTMv0PzR+piTXxC6m/jCkR6cX49S66ywIgdGkuQ9B5xyYOXAP4tGrBR0sn3pwIkgnBlJ/EYk1g8hwBIPVsGo71Dh/A/qonx9kn8r0DqaTQQJROcuWLKq6yDolrAQFyY6ggqWdAhehPzAb+dk/29PLB5qNMEC4xeJjERo/meQKYhkKIIQNDllrl7DQHw+jK49OkQ9Qe2APkbmwKgLCoUIqX/eNRd6xnA4HVAbF1IQONohEkbUT2vCS0f0ugXSuyfo42ia8qydbRBYM/9pNwaqxoAAEBK1VkAAAAAAAAIlEgImkJy4oJ45Temzg3yZiDY0okTkqaDvKsDYYfQLhw5xkAAAA=% 
+
+AT the end of this process we will find that the ordinal isncription will succesfully be transefered:
+The owner of the inscription was before a wallet named "ord" i had in local.
+
+ord --testnet4 wallet --name buyer outputs
+
+[
+  {
+    "output": "b633139f6752e4b26efeb3995f5b524822ecaab9df0a018df0c92e8701c6e806:0",
+    "address": "tb1p3ahgzl3akcq9nhtwye3juyddeenheh0t7pnw6q572kczp9mn3qfqvpwek2",
+    "amount": 10000,
+    "inscriptions": [
+      "7b59080b7a7b2db9966c202ae64f9be6c781d2e26f5191b1592e69bc6a4ede48i0"
+    ],
+    "runes": {}
+  }
+]
+
+
+And if we want to check what we have in the inscription:
+
+curl -s "http://0.0.0.0:80/content/7b59080b7a7b2db9966c202ae64f9be6c781d2e26f5191b1592e69bc6a4ede48i0"
+{
+  "protocol": "nft-ord-v1",
+  "name": "NFT #1",
+  "description": "700x700px  NFT",
+  "image_url": "https://drive.google.com/file/d/1ykyakOknemtTz_dz2KrFeQAM92QlNJdn/view?usp=drive_link",
+  "sha256": "35b5e5205bdcf54bb1a1964b261100bdac30a470021d6b72bd4c30889058b0ef"
+}%    
+
+
+UNLOCKING LAST TRANSACTION:
+https://mempool.space/testnet4/tx/b633139f6752e4b26efeb3995f5b524822ecaab9df0a018df0c92e8701c6e806
+
+------------------------------------------------------------------ RUN 2
+INSC ID 7b59080b7a7b2db9966c202ae64f9be6c781d2e26f5191b1592e69bc6a4ede48i0
+
+In this first run there was a bit of a problem with the fees,
+the last psbt needed the signature of the seller, in order to unlock the seller fees to the p2wsh.
+
+In this second run I'll be moving the ord from "buyer" to "buyer_wallet",
+so that the buyer_wallet will pay the fees and unlock the p2wsh on its own.
+
+
+P2wsh js script builder output
+
+H (sha256 of secret): a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe67902988642
+Seller WIF (KEEP SECRET): cN1taMEPLT2FGwPS8nv96bj1abUUbq6c2t75fovEQfzdDsHmzpuh
+Seller pubkey: 02e435ca35d0e151026c1f0c8517358d9636a345664ba88dfff9688c42dfe0d9a4
+Buyer WIF (KEEP SECRET): cQvzrfSD41ys5t22uSJ86Sb2AmjiBUxWd8H3Zt5TMj1t3f2UeBKY
+Buyer pubkey: 026b90d183cf3d06ed659ecde81bf47279c1eee0859b25b1d538980ae3de9d4290
+Refund CLTV locktime: 120193
+witnessScript hex: 63a820a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe679029886428821026b90d183cf3d06ed659ecde81bf47279c1eee0859b25b1d538980ae3de9d4290ac670381d501b1752102e435ca35d0e151026c1f0c8517358d9636a345664ba88dfff9688c42dfe0d9a4ac68
+P2WSH scriptPubKey hex: 0020945880073a2fd4dc53a6b4f4130df315be30ed773a2b7b694557a27dffce2cd9
+P2WSH address: tb1qj3vgqpe69l2dc5axkn6pxr0nzklrpmth8g4hk6292738ml7w9nvsgj2v2w
+
+
+SET THOSE VARIABLES TO BUILD THE FUNDING PSBT
+
+
+INSCR_TXID="b633139f6752e4b26efeb3995f5b524822ecaab9df0a018df0c92e8701c6e806"      # the txid that transfered the inscription
+INSCR_VOUT=0
+FEE_TXID="4f951979fea126f50d94ea6eb51a909906ac40fae3c33bf14b1c1db7b0d84bb2"        # from listunspent so not the one containing the inscription
+FEE_VOUT=0
+ESCROW_ADDR="tb1qj3vgqpe69l2dc5axkn6pxr0nzklrpmth8g4hk6292738ml7w9nvsgj2v2w" # from your JS output
+CHANGE_ADDR=$(bitcoin-cli -rpcwallet=buyer getrawchangeaddress bech32m)
+tb1pnjydaah9cda5ralsc599kl47tmf9mrs59yes0mqpr74zfr8fqxnsasgyw9
+
+
+THEN I BUILD IT WITH:
+
+PSBT=$(bitcoin-cli -rpcwallet=buyer walletcreatefundedpsbt \
+  "[{\"txid\":\"$INSCR_TXID\",\"vout\":$INSCR_VOUT},{\"txid\":\"$FEE_TXID\",\"vout\":$FEE_VOUT}]" \
+  "[{\"$ESCROW_ADDR\":0.00010000}]" \
+  0 \
+  "{\"add_inputs\":false,\"changeAddress\":\"$CHANGE_ADDR\",\"changePosition\":1,\"fee_rate\":5,\"lockUnspents\":true}" \
+  | jq -r .psbt)
+
+Then same as before :
+PSBT_SIGNED=$(bitcoin-cli -rpcwallet=buyer walletprocesspsbt "$PSBT" | jq -r .psbt)
+FUND_HEX=$(bitcoin-cli finalizepsbt "$PSBT_SIGNED" true | jq -r .hex)
+FUND_TXID=$(bitcoin-cli sendrawtransaction "$FUND_HEX")
+
+6444b0174629fe53318117225dae445aa353ab7a4e1a7f527de7d88d735f3f56
+
+------------- Now the contract is defined and we switch to the buyer side ---------------------
+
+I've also created a witness script decoder so that we can know the details of the "contract" from the hex itself.
+decode_witness_script.js
+
+then the buyer with the needed info will build a partially signed tx:
+
+node buyer_redeem_v2.js 
+cHNidP8BALICAAAAAlY/X3ON2Od9Un8aTnqrU6NaRK5dIheBMVP+KUYXsERkAAAAAAD/////mN9cTlJOkfyu8aSnt81Sua/E8FV+RfAIKbtu4BdSRW0AAAAAAP////8CECcAAAAAAAAiUSCt7rY7G08pkRBcuULGDwHJhQz6VxuIq4zA/X/XIDCdXEAfAAAAAAAAIlEgrIxe3iLqxeynTv5Q7nRfH7HtChWIJ+kYnQZcAUU/EUkAAAAAAAEBKxAnAAAAAAAAIgAglFiABzov1NxTprT0Ew3zFb4w7Xc6K3tpRVeiff/OLNkAAQErECcAAAAAAAAiUSCoRRlukD2BXGL1ginRDDFtT//76H8kfMhAiXI52xhhRgAAAA==
+
+Then we process it with wallet :
+PSBT_CORE=$(bitcoin-cli -rpcwallet=buyer_wallet walletprocesspsbt "$BUYER_PSBT" | jq -r .psbt)
+
+TO CHECK IT : bitcoin-cli  decodepsbt "$PSBT_CORE" | jq '.inputs[1]' 
+
+
+THEN WE USE THIS AND PASTE ALL THE INFO INSIDE THE ordinal_buyer_claim_p2 (finalizer)
+
+Sometimes it is useful to save this output into a file : node ordinal_buyer_claim_p2 > finalpsbt.b64
+In this way we don't get strange errors
+
+
+THE OUTPUT IS :
+
+cHNidP8BALICAAAAAlY/X3ON2Od9Un8aTnqrU6NaRK5dIheBMVP+KUYXsERkAAAAAAD/////mN9cTlJOkfyu8aSnt81Sua/E8FV+RfAIKbtu4BdSRW0AAAAAAP////8CECcAAAAAAAAiUSCt7rY7G08pkRBcuULGDwHJhQz6VxuIq4zA/X/XIDCdXEAfAAAAAAAAIlEgrIxe3iLqxeynTv5Q7nRfH7HtChWIJ+kYnQZcAUU/EUkAAAAAAAEBKxAnAAAAAAAAIgAglFiABzov1NxTprT0Ew3zFb4w7Xc6K3tpRVeiff/OLNkBBwABCOAESDBFAiEA/xQXF4m88BUNtVOSfbtQ/zPQF8WLMYMkHJqAkj06cTgCIGB0Xm2DQIxDt93VyrRgWV3qskJL+kFdAyAbWIQ2tqhVASD1bBqO9Q4fwP6qJ8fZJ/K9A6mk0ECUTnLliyqusg6JawEBcmOoIKlnQIXoT8wG/nZP9vTyweajTBAuMXiYxEaP5nkCmIZCiCECa5DRg889Bu1lns3oG/RyecHu4IWbJbHVOJgK496dQpCsZwOB1QGxdSEC5DXKNdDhUQJsHwyFFzWNljajRWZLqI3/+WiMQt/g2aSsaAABAIkCAAAAAYeYB8WLA7VW++sKC9XH3z/305wWzMKKPlo7VyhOGlatAAAAAAD9////AjQZBgAAAAAAIlEgqEUZbpA9gVxi9YIp0QwxbU//++h/JHzIQIlyOdsYYUaghgEAAAAAACIAIEwdj95T9p5XMWLQnHY6mq3iEiwsmCMxp80Ccdztg0YT7qYBAAEBKzQZBgAAAAAAIlEgqEUZbpA9gVxi9YIp0QwxbU//++h/JHzIQIlyOdsYYUYBCEIBQOZecuk/9kXqNVcJYSNICdDLfmzxff2QvgKANPbQMrh4n07E0JoDJt4UOT8B06wijHpavIr8f7oGnMXmHMuPXDEAAQUg8yl2AQ8lEf0I9j0h3xfcYYkyMbEhiTC3ryy/78yuTVYhB/MpdgEPJRH9CPY9Id8X3GGJMjGxIYkwt68sv+/Mrk1WGQAY/h1mVgAAgAEAAIAAAACAAAAAAAAAAAAAAQUg6b2keBBM5CjujGTZgyUIYd4xNGTmbsUq2vv6tLiFKcYhB+m9pHgQTOQo7oxk2YMlCGHeMTRk5m7FKtr7+rS4hSnGGQAY/h1mVgAAgAEAAIAAAACAAQAAAAIAAAAA%       
+
+
+FINAL_HEX=$(bitcoin-cli finalizepsbt "$(cat psbtfinal.b64)" true | jq -r .hex) 
+echo "$FINAL_HEX"
+
+02000000000102563f5f738dd8e77d527f1a4e7aab53a35a44ae5d2217813153fe294617b044640000000000ffffffff98df5c4e524e91fcaef1a4a7b7cd52b9afc4f0557e45f00829bb6ee01752456d0000000000ffffffff021027000000000000225120adeeb63b1b4f2991105cb942c60f01c9850cfa571b88ab8cc0fd7fd720309d5c401f000000000000225120ac8c5ede22eac5eca74efe50ee745f1fb1ed0a158827e9189d065c01453f114904483045022100ff14171789bcf0150db553927dbb50ff33d017c58b3183241c9a80923d3a7138022060745e6d83408c43b7ddd5cab460595deab2424bfa415d03201b588436b6a8550120f56c1a8ef50e1fc0feaa27c7d927f2bd03a9a4d040944e72e58b2aaeb20e896b01017263a820a9674085e84fcc06fe764ff6f4f2c1e6a34c102e317898c4468fe679029886428821026b90d183cf3d06ed659ecde81bf47279c1eee0859b25b1d538980ae3de9d4290ac670381d501b1752102e435ca35d0e151026c1f0c8517358d9636a345664ba88dfff9688c42dfe0d9a4ac680140e65e72e93ff645ea35570961234809d0cb7e6cf17dfd90be028034f6d032b8789f4ec4d09a0326de14393f01d3ac228c7a5abc8afc7fba069cc5e61ccb8f5c3100000000
+
+
+Then we test the acceptance:
+
+bitcoin-cli testmempoolaccept "[\"$FINAL_HEX\"]"
+
+And finally we broadcast it :
+
+REDEEM_TXID=$(bitcoin-cli sendrawtransaction "$FINAL_HEX")
+echo "REDEEM_TXID=$REDEEM_TXID"
+
+REDEEM_TXID=b84ec7b8e9f28b0f2c99e477ee141ff073365356d0865cbeb2a5f8e0e13e95c4
+
+
+We can verify that the inscription is transfered to a non ord wallet by :
+
+checking the vout of the redeeming tx with 
+
+bitcoin-cli -rpcwallet=buyer_wallet gettxout "$REDEEM_TXID" 0 true 
+
+{
+  "bestblock": "000000000b497fc4339a7971adeed89b760e0afa8ccef3a0e0d9dc96e52367fa",
+  "confirmations": 0,
+  "value": 0.00010000,
+  "scriptPubKey": {
+    "asm": "1 adeeb63b1b4f2991105cb942c60f01c9850cfa571b88ab8cc0fd7fd720309d5c",
+    "desc": "rawtr(adeeb63b1b4f2991105cb942c60f01c9850cfa571b88ab8cc0fd7fd720309d5c)#yvgd3924",
+    "hex": "5120adeeb63b1b4f2991105cb942c60f01c9850cfa571b88ab8cc0fd7fd720309d5c",
+    "address": "tb1p4hhtvwcmfu5ezyzuh9pvvrcpexzse7jhrwy2hrxql4lawgpsn4wqvfn6d5",
+    "type": "witness_v1_taproot"
+  },
+  "coinbase": false
+}
+
+and checking in case if the wallet actually controls that address:
+
+bitcoin-cli -rpcwallet=buyer_wallet getaddressinfo "tb1p4hhtvwcmfu5ezyzuh9pvvrcpexzse7jhrwy2hrxql4lawgpsn4wqvfn6d5" | jq '{ismine, solvable, iswatchonly, desc}' 
+
+{
+  "ismine": true,
+  "solvable": true,
+  "iswatchonly": false,
+  "desc": "tr([18fe1d66/86h/1h/0h/0/0]f32976010f2511fd08f63d21df17dc61893231b1218930b7af2cbfefccae4d56)#k782vn2k"
+}
+
+ordinal_transfer % bitcoin-cli -rpcwallet=buyer_wallet getaddressinfo \
+"tb1p4hhtvwcmfu5ezyzuh9pvvrcpexzse7jhrwy2hrxql4lawgpsn4wqvfn6d5"
+
+{
+  "address": "tb1p4hhtvwcmfu5ezyzuh9pvvrcpexzse7jhrwy2hrxql4lawgpsn4wqvfn6d5",
+  "scriptPubKey": "5120adeeb63b1b4f2991105cb942c60f01c9850cfa571b88ab8cc0fd7fd720309d5c",
+  "ismine": true,
+  "solvable": true,
+  "desc": "tr([18fe1d66/86h/1h/0h/0/0]f32976010f2511fd08f63d21df17dc61893231b1218930b7af2cbfefccae4d56)#k782vn2k",
+  "parent_desc": "tr([18fe1d66/86h/1h/0h]tpubDD4h9CnqnSqSVSF7UVVb2fHm18DDZB8LjFgqAwnK9U4NW8nHtKKDxE5SoFLFZ9VcBADSMpDTn6F7rapdXEomTNoUuTzahx369pNFWFs45b5/0/*)#d07wxlsj",
+  "iswatchonly": false,
+  "isscript": true,
+  "iswitness": true,
+  "witness_version": 1,
+  "witness_program": "adeeb63b1b4f2991105cb942c60f01c9850cfa571b88ab8cc0fd7fd720309d5c",
+  "ischange": false,
+  "timestamp": 1761647488,
+  "hdkeypath": "m/86h/1h/0h/0/0",
+  "hdseedid": "0000000000000000000000000000000000000000",
+  "hdmasterfingerprint": "18fe1d66",
+  "labels": [
+    ""
+  ]
+}
+
+We can just also use the explorer and check where the 10000 sats end up trough the txs

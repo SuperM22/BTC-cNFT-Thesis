@@ -12,6 +12,12 @@ use risc0_zkvm::Receipt;
 use std::{env, fs};
 use serde::Deserialize;
 
+use chacha20poly1305::{
+    aead::{Aead, KeyInit},
+    ChaCha20Poly1305, Key, Nonce,
+};
+use image::{ImageBuffer, Rgb};
+
 #[derive(Deserialize, Debug)]
 struct Journal {
     hk: [u8; 32],
@@ -23,6 +29,44 @@ struct Journal {
     downgraded: Vec<u8>,
     ciphertext: Vec<u8>,
 }
+
+//helpers for decryption and output of the image
+
+fn parse_key_32(hex_str: &str) -> [u8; 32] {
+    let s = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+    let raw = hex::decode(s).expect("invalid hex key");
+    if raw.len() != 32 {
+        panic!("key must be 32 bytes (64 hex chars)");
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&raw);
+    out
+}
+
+fn decrypt_ciphertext(j: &Journal, k: [u8; 32]) -> Vec<u8> {
+    let cipher = ChaCha20Poly1305::new(Key::from_slice(&k));
+    let nonce = Nonce::from_slice(&j.nonce);
+
+    cipher.decrypt(nonce, j.ciphertext.as_ref()).expect("decrypt failed")
+}
+
+fn plaintext_rgb_to_png(plaintext_rgb: Vec<u8>, w: u32, h: u32, out_png: &str) {
+    let expected = (w as usize) * (h as usize) * 3usize;
+    if plaintext_rgb.len() != expected {
+        panic!(
+            "plaintext length mismatch: got {}, expected {} (= {}*{}*3)",
+            plaintext_rgb.len(),
+            expected,
+            w,
+            h
+        );
+    }
+
+    let img: ImageBuffer<Rgb<u8>, Vec<u8>> =
+        ImageBuffer::from_raw(w, h, plaintext_rgb).expect("failed to build image from raw bytes");
+    img.save(out_png).expect("failed to save png");
+}
+
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -89,5 +133,52 @@ fn main() {
         println!("down_w = {}", journal.down_w);
         println!("down_h = {}", journal.down_h);
 
+        // decrypt-image mode:
+        //   verifier <method.bin> <proof.bin> decrypt-image --key <hex32> --w <W> --h <H> [--out out.png]
+        if args.len() >= 4 && args[3] == "decrypt-image" {
+            let mut key_hex: Option<String> = None;
+            let mut w: Option<u32> = None;
+            let mut h: Option<u32> = None;
+            let mut out_png: String = "decrypted.png".to_string();
+
+            let mut i = 4;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--key" => {
+                        i += 1;
+                        key_hex = args.get(i).cloned();
+                    }
+                    "--w" => {
+                        i += 1;
+                        w = args.get(i).and_then(|s| s.parse::<u32>().ok());
+                    }
+                    "--h" => {
+                        i += 1;
+                        h = args.get(i).and_then(|s| s.parse::<u32>().ok());
+                    }
+                    "--out" => {
+                        i += 1;
+                        if let Some(v) = args.get(i) {
+                            out_png = v.clone();
+                        }
+                    }
+                    other => {
+                        panic!("unknown flag: {}", other);
+                    }
+                }
+                i += 1;
+            }
+
+            let key_hex = key_hex.expect("missing --key");
+            let w = w.expect("missing --w");
+            let h = h.expect("missing --h");
+
+            let k = parse_key_32(&key_hex);
+            let plaintext = decrypt_ciphertext(&journal, k);
+
+            plaintext_rgb_to_png(plaintext, w, h, &out_png);
+
+            println!("wrote {}", out_png);
+        }
     }
 }

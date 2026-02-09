@@ -82,15 +82,26 @@ from this file the verifier will extract the image id of the program and then ch
 Actually is not the elf file but the binary.
 
 local paths for verification:
-/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/sha-demo/target/riscv-guest/methods/sha_guest/riscv32im-risc0-zkvm-elf/release/sha_guest.bin
-/Users/mimmo/Documents/GitHub/BTC-cNFT-Thesis/proofs/proof_700_sha.bin
+../target/riscv-guest/methods/sha_guest/riscv32im-risc0-zkvm-elf/release/sha_guest.bin
+../../proofs/proof_700_sha.bin
 
 
 5. buyer creates the p2wsh with the H(k) derived from the proof
 
+https://mempool.space/testnet4/address/tb1qasv77m0lpls2lyx7l03hnzc9ed0cjrkws3g4nv0mwahh5rxnvvzqwrenpx
+
 
 6. The seller redeems the funds by revealing k on chain
 
+https://mempool.space/testnet4/tx/0bf6980d4c3df5e8cdb562ef150f04ab1f1850e525d132fdacce463e6bba5176
+
+The key k can be found in the witness of the unlocking transaction.
+under details in the explorer.
+
 7. the buyer decrypts the cypher text via k and the nonce
 
+cargo run --release ../target/riscv-guest/methods/sha_guest/riscv32im-risc0-zkvm-elf/release/sha_guest.bin ../../proofs/proof_700_sha.bin decrypt-image --key 0xf56c1a8ef50e1fc0feaa27c7d927f2bd03a9a4d040944e72e58b2aaeb20e896b --w 700 --h 700
+
 ????? What about the ownership of the nft ??????
+
+Ownership of NFT handled in /ordinal_transfer folder
