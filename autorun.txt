@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+
+DESKTOP="/mnt/c/Users/domec/Desktop"
+
+PROOF_FILE="proof.bin"
+
+if [ ! -d "$DESKTOP" ]; then
+  echo "ERROR: Desktop path not found: $DESKTOP"
+  exit 1
+fi
+
+
+COMMANDS=(
+  'RISC0_DEV_MODE=1 cargo run --release -p host -- 800.bin 800 800 0xf56c1a8ef50e1fc0feaa27c7d927f2bd03a9a4d040944e72e58b2aaeb20e896b 8'
+  'RISC0_DEV_MODE=1 cargo run --release -p host -- 900.bin 900 900 0xf56c1a8ef50e1fc0feaa27c7d927f2bd03a9a4d040944e72e58b2aaeb20e896b 9'
+  'RISC0_DEV_MODE=1 cargo run --release -p host -- 1000.bin 1000 1000 0xf56c1a8ef50e1fc0feaa27c7d927f2bd03a9a4d040944e72e58b2aaeb20e896b 10'
+)
+
+for idx in "${!COMMANDS[@]}"; do
+  run=$((idx + 1))
+  cmd="${COMMANDS[$idx]}"
+
+  echo "======================================"
+  echo "RUN $run START $(date)"
+  echo "CMD: $cmd"
+  echo "======================================"
+
+ 
+  bash -lc "$cmd"
+
+
+  if [ ! -f "$PROOF_FILE" ]; then
+    echo "ERROR: $PROOF_FILE not found after run $run"
+    exit 1
+  fi
+
+  
+  target="$DESKTOP/proof_run${run}.bin"
+  mv "$PROOF_FILE" "$target"
+
+  echo "Saved: $target"
+  echo "RUN $run END $(date)"
+  echo
+done
+
+echo "ALL RUNS COMPLETED $(date)"
